@@ -1,7 +1,6 @@
 from .helper import timestamp_to_datetime
 import six
 
-
 class ApiModel(object):
 
     @classmethod
@@ -38,6 +37,11 @@ class Image(ApiModel):
 
 
 class Video(Image):
+
+    def __init__(self, *args, **kwargs):
+        # FIXME: this shows up in the api response, but is always '0'. what is this?
+        self.id = kwargs.pop('id', None)
+        super(Video, self).__init__(*args, **kwargs)
 
     def __unicode__(self):
         return "Video: %s" % self.url
@@ -78,13 +82,19 @@ class Media(ApiModel):
         new_media.user = User.object_from_dictionary(entry['user'])
 
         new_media.images = {}
-        for version, version_info in six.iteritems(entry['images']):
+        for version, version_info in six.iteritems(entry.get('images')):
             new_media.images[version] = Image.object_from_dictionary(version_info)
 
         if new_media.type == 'video':
             new_media.videos = {}
-            for version, version_info in six.iteritems(entry['videos']):
-                new_media.videos[version] = Video.object_from_dictionary(version_info)
+            if entry.get('videos', False):
+                for version, version_info in six.iteritems(entry['videos']):
+                    new_media.videos[version] = Video.object_from_dictionary(version_info)
+
+            ## Sometimes images return with type: 'videos'
+            elif entry.get('images', False):
+                for version, version_info in six.iteritems(entry['images']):
+                    new_media.images[version] = Image.object_from_dictionary(version_info)
 
         if 'user_has_liked' in entry:
             new_media.user_has_liked = entry['user_has_liked']
@@ -112,7 +122,7 @@ class Media(ApiModel):
         new_media.caption = None
         if entry['caption']:
             new_media.caption = Comment.object_from_dictionary(entry['caption'])
-        
+
         new_media.tags = []
         if entry['tags']:
             for tag in entry['tags']:
@@ -200,6 +210,11 @@ class User(ApiModel):
     def __unicode__(self):
         return "User: %s" % self.username
 
+    def __eq__(self, other):
+        return self.id == other.id
+
+    def __ne__(self, other):
+        return not self == other
 
 class Relationship(ApiModel):
 
